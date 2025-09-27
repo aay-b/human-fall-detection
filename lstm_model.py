@@ -58,7 +58,7 @@ class ActionLSTM(nn.Module):
 # New: config + convenience API
 # =========================
 # EDIT this to your exact label order used during training:
-CLASS_NAMES = ["walk", "fall", "stand", "jump"]
+CLASS_NAMES = ["walk", "fall"]
 
 # Default weights filename (put it next to this file)
 DEFAULT_WEIGHTS = "action_lstm.pth"
@@ -96,18 +96,19 @@ _model  = None  # filled by load_model()
 
 def load_model(weights_path=None):
     global _model
-    _model = ActionLSTM()
+    num_classes = len(CLASS_NAMES)   # 👈 make this dynamic
+    _model = ActionLSTM(num_classes=num_classes)
     _model.eval()
 
     if weights_path and os.path.exists(weights_path):
         state = torch.load(weights_path, map_location="cpu")
-        _model.load_state_dict(state)
+        _model.load_state_dict(state, strict=False)   # allow mismatch in case
         print(f"[model] loaded weights from {weights_path}")
     else:
-        print("[model] no weights found, using random init")  # 👈 new line
-        # leave model with random weights
+        print("[model] no weights found, using random init")
 
     return _model
+
 
 
 def _ensure_model():
@@ -156,5 +157,7 @@ def predict(x):
     logits = m(tens)
     # 👇 critical change: no .numpy() here
     probs  = torch.softmax(logits, dim=-1).cpu().numpy()
+    pred_class = np.argmax(probs, axis=1)[0]
+    print(f"[debug] probs={probs[0]}, pred={CLASS_NAMES[pred_class]}")
     return probs
 

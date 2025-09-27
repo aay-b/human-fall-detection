@@ -4,7 +4,7 @@
 
 # ** NOTE **
 # How to run?
-# -> python play_and_detect.py --video test4.mp4 --use-model
+# ->  python play_and_detect.py --video test4.mp4 --use-model --weights action_lstm.pth
 
 import os, sys, cv2, glob, argparse, time, csv, math
 # os: lets you talk to the computer’s operating system. sys: lets you talk to Python itself
@@ -27,22 +27,22 @@ from datetime import datetime
 FRAMES_PER_WINDOW = 45     # How many frames we look at together as one 'window' when deciding walk/fall. Temporal context per prediction (lower = faster reaction)
 HUD = True                 # draw status banner
 DRAW_POINTS = True         # draw pose keypoints (green dots)
-SMOOTH_WINDOW = 7          # moving average length for smoothed prob. We average the last this-many('6') probabilities to keep the label from flickering.
+SMOOTH_WINDOW = 9          # moving average length for smoothed prob. We average the last this-many('6') probabilities to keep the label from flickering.
 
 # Debounce / dwell (helps avoid early triggers)
-ENTRY_DWELL = 5            # We only say 'FALL' if the trigger stays true for this many frames in a row (prevents jumpy false alarms).
+ENTRY_DWELL = 13            # We only say 'FALL' if the trigger stays true for this many frames in a row (prevents jumpy false alarms).
 
 # Hysteresis thresholds (conservative default; tune per dataset)
-FALL_PROB_ON  = 0.15       # To switch into FALL, the average 'fall' probability must be at least this number
-FALL_PROB_OFF = 0.10       # To switch back to WALK, the average 'fall' probability must drop below this number
+FALL_PROB_ON  = 0.5       # To switch into FALL, the average 'fall' probability must be at least this number
+FALL_PROB_OFF = 0.3       # To switch back to WALK, the average 'fall' probability must drop below this number
 
 # Heuristic fusion (helps at impact)
-USE_HEURISTIC_FUSION = True # If True, we blend the model's prediction with a hand-made rule (heuristic).
+USE_HEURISTIC_FUSION = False # If True, we blend the model's prediction with a hand-made rule (heuristic).
 HEURISTIC_WEIGHT = 0.34    # How much the heuristic counts in the blend. 0.34 means 34% heuristic + 66% model.
 HEURISTIC_FORCE_ON = 0.46  # If the heuristic is very sure (above this number), allow an instant trigger (still respects dwell).
 
 # Optional conservative dual-gate: BOTH model & heuristic must be decent
-DUAL_GATE  = True # If True, be extra careful: require both model and heuristic to be 'good enough' at the same time.
+DUAL_GATE  = False # If True, be extra careful: require both model and heuristic to be 'good enough' at the same time.
 MODEL_GATE = 0.30 # The model's minimum score needed (when DUAL_GATE = True).
 HEUR_GATE  = 0.38 # The heuristic's minimum score needed (when HEUR_GATE = True).
 
@@ -387,6 +387,17 @@ def process_one(video_path, use_model=False, weights_path=None, debug=False, log
         smooth_probs.append(fall_prob) # Add it into the smoothing deque (oldest value falls off automatically).
         avg_prob = float(np.mean(smooth_probs)) if len(smooth_probs) else fall_prob # Compute the average over the recent values (or just the current value if buffer is empty).
 
+        # --- extra guard: hip-drop check ---
+        if len(skels) == FRAMES_PER_WINDOW:
+            hip_y_start = skels[0][0, 1]  # hip y at start
+            hip_y_end = skels[-1][0, 1]  # hip y at end
+            hip_drop = hip_y_end - hip_y_start
+            h, w = disp.shape[:2]
+            hip_drop_norm = hip_drop / h  # normalize by frame height
+        else:
+            hip_drop_norm = 0.0
+
+
         # ===== DECISION LOGIC (conservative, debounced, dual-gated) =====
         trigger = False
 
@@ -400,7 +411,7 @@ def process_one(video_path, use_model=False, weights_path=None, debug=False, log
 
         # Require BOTH model and heuristic to be decent (conservative)
         if DUAL_GATE:
-            trigger = (avg_prob >= MODEL_GATE) and (h_score >= HEUR_GATE) # Only set trigger if both smoothed model prob and heuristic score beat their gates.
+            trigger = (avg_prob >= MODEL_GATE) and (h_score >= HEUR_GATE) and (hip_drop_norm > 0.08) # Only set trigger if both smoothed model prob and heuristic score beat their gates.
 
         # Debounce / dwell: need sustained trigger for ENTRY_DWELL frames
         if trigger:
@@ -409,6 +420,14 @@ def process_one(video_path, use_model=False, weights_path=None, debug=False, log
             fall_entry_count = 0
 
         # Apply state transition with hysteresis
+        print(
+            f"[decision] avg_prob={avg_prob:.3f}, "
+            f"h_score={h_score:.3f}, "
+            f"trigger={trigger}, "
+            f"fall_entry_count={fall_entry_count}, "
+            f"hip_drop_norm={hip_drop_norm:.3f}"
+        )
+
         if not state_is_fall: # If we’re currently in WALK state…
             if fall_entry_count >= ENTRY_DWELL: # If we’ve had a sustained trigger long enough (dwell)…
                 state_is_fall = True
