@@ -52,16 +52,17 @@ This project was built as a demonstration of applied computer vision, deep learn
 
 **Installation**
 
-# Clone repository
+*Clone repository*
+
 git clone *link of repo*
 cd human-fall-detection
 
-# Create virtual environment (recommended)
+*Create virtual environment (recommended)*
 python -m venv .venv
 source .venv/bin/activate   # Linux/Mac
 .venv\Scripts\activate      # Windows
 
-# Install dependencies
+*Install dependencies*
 pip install -r requirements.txt
 
 ---
@@ -70,10 +71,10 @@ pip install -r requirements.txt
 
 Train model: python train_lstm.py
 Run Detection: 
-# Run with a test video
+*Run with a test video*
 python play_and_detect.py --video test3.mp4 --use-model --weights action_lstm.pth
 
-# Enable CSV logging
+*Enable CSV logging*
 python play_and_detect.py --video test4.mp4 --use-model --log-csv
 
 *Controls*
