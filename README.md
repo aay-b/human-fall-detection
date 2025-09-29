@@ -47,3 +47,39 @@ This project was built as a demonstration of applied computer vision, deep learn
 3. Pass window through LSTM → get per-frame fall probability.
 4. Apply smoothing, hysteresis, and dwell-time logic to avoid false positives.
 5. Trigger alert & update HUD when a fall is confirmed.
+
+---
+
+**Installation**
+
+# Clone repository
+git clone *link of repo*
+cd human-fall-detection
+
+# Create virtual environment (recommended)
+python -m venv .venv
+source .venv/bin/activate   # Linux/Mac
+.venv\Scripts\activate      # Windows
+
+# Install dependencies
+pip install -r requirements.txt
+
+---
+
+**Usage**
+
+Train model: python train_lstm.py
+Run Detection: 
+# Run with a test video
+python play_and_detect.py --video test3.mp4 --use-model --weights action_lstm.pth
+
+# Enable CSV logging
+python play_and_detect.py --video test4.mp4 --use-model --log-csv
+
+*Controls*
+
+- Space → Pause/Resume
+- q / ESC → Quit
+
+
+
